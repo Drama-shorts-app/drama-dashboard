@@ -19,7 +19,7 @@ import { VideoDropzone } from "./VideoDropzone";
 
 type UploadFormProps = {
   apiUrl: string;
-  accessToken: string;
+  getAccessToken: () => Promise<string>;
   dramas: DramaSummary[];
   dramasLoading: boolean;
   dramasError: string | null;
@@ -40,7 +40,7 @@ const INITIAL_DRAFT: UploadDraft = {
 
 export function UploadForm({
   apiUrl,
-  accessToken,
+  getAccessToken,
   dramas,
   dramasLoading,
   dramasError,
@@ -135,6 +135,7 @@ export function UploadForm({
     abortRef.current = controller;
 
     try {
+      const accessToken = await getAccessToken();
       const uploaded = await uploadEpisode({
         apiUrl,
         accessToken,

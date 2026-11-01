@@ -17,12 +17,22 @@ export default function App() {
       return;
     }
 
+    let isMounted = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setSession(data.session);
+      setIsAuthReady(true);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setIsAuthReady(true);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const preview = import.meta.env.DEV

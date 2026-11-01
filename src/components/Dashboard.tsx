@@ -41,10 +41,25 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     setRefreshError(null);
   }, []);
 
+  const getAccessToken = useCallback(async () => {
+    if (!supabase) {
+      if (session.access_token) return session.access_token;
+      throw new ApiError("Your operator session is missing. Sign in again.", 401, "AUTH_SESSION_MISSING");
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token || session.access_token;
+    if (error || !accessToken) {
+      throw new ApiError("Your operator session is missing. Sign in again.", 401, "AUTH_SESSION_MISSING");
+    }
+    return accessToken;
+  }, [session.access_token]);
+
   const loadDramas = useCallback(async (signal?: AbortSignal) => {
     setIsLoadingDramas(true);
     try {
-      const nextDramas = await listDramas(appConfig.apiUrl, session.access_token, signal);
+      const accessToken = await getAccessToken();
+      const nextDramas = await listDramas(appConfig.apiUrl, accessToken, signal);
       setDramas(nextDramas);
       setDramasError(null);
     } catch (error) {
@@ -55,7 +70,7 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     } finally {
       setIsLoadingDramas(false);
     }
-  }, [session.access_token]);
+  }, [getAccessToken]);
 
   useEffect(() => {
     if (isPreview) return;
@@ -74,20 +89,22 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
       setDramas((current) => [...current, previewDrama]);
       return previewDrama;
     }
-    const drama = await createDrama(appConfig.apiUrl, session.access_token, input);
+    const accessToken = await getAccessToken();
+    const drama = await createDrama(appConfig.apiUrl, accessToken, input);
     setDramas((current) => [...current, drama].sort((left, right) => left.title.localeCompare(right.title)));
     setDramasError(null);
     return drama;
-  }, [isPreview, session.access_token]);
+  }, [getAccessToken, isPreview]);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!video?.episodeId) return;
     setIsRefreshing(true);
     try {
+      const accessToken = await getAccessToken();
       const nextVideo = await getEpisodeVideoStatus(
         appConfig.apiUrl,
         video.episodeId,
-        session.access_token,
+        accessToken,
         signal,
       );
       updateVideo(nextVideo);
@@ -99,7 +116,7 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [session.access_token, updateVideo, video?.episodeId]);
+  }, [getAccessToken, updateVideo, video?.episodeId]);
 
   useEffect(() => {
     if (!video || video.videoIngestionStatus !== "processing") return;
@@ -109,10 +126,11 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
 
     async function poll() {
       try {
+        const accessToken = await getAccessToken();
         const nextVideo = await getEpisodeVideoStatus(
           appConfig.apiUrl,
           video!.episodeId,
-          session.access_token,
+          accessToken,
           controller.signal,
         );
         if (stopped) return;
@@ -135,7 +153,7 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [session.access_token, updateVideo, video?.episodeId, video?.videoIngestionStatus]);
+  }, [getAccessToken, updateVideo, video?.episodeId, video?.videoIngestionStatus]);
 
   async function handleSignOut() {
     if (!supabase) return;
@@ -171,7 +189,7 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
         <div className="workbench-grid">
           <UploadForm
             apiUrl={appConfig.apiUrl}
-            accessToken={session.access_token}
+            getAccessToken={getAccessToken}
             dramas={dramas}
             dramasLoading={isLoadingDramas}
             dramasError={dramasError}
