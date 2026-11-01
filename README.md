@@ -9,9 +9,10 @@ A focused internal React dashboard for one job: upload an episode video to the D
 - Browser-to-API upload progress and cancellation
 - Automatic polling of `GET /v1/admin/episodes/:episodeId/video-status`
 - Local recovery of the latest tracked upload after a refresh
+- Operator series selection and creation without manually entering UUIDs
 - Responsive, keyboard-accessible upload and status controls
 
-The dashboard intentionally does not include drama management, episode lists, analytics, users, or billing.
+The dashboard intentionally does not include episode lists, analytics, users, or billing.
 
 ## Local setup
 
@@ -39,7 +40,13 @@ If the API runs on another origin, add the dashboard origin to the backend `CORS
 
 The multipart form sends every metadata field before the final `video` part so the Fastify backend can stream the file to Bunny without buffering it. Supported source types are MP4, MOV, WebM, and MKV, up to 2 GiB.
 
-The current backend authenticates the route with a Supabase bearer token. Before exposing this dashboard beyond trusted operators, enforce an admin/operator authorization check in the backend; authentication alone does not establish admin privileges.
+The dashboard authenticates with a Supabase bearer token. The backend enforces
+the operator role from trusted Supabase `app_metadata` claims for both the
+series catalog and video routes.
+
+Before uploading, the dashboard loads `GET /v1/admin/dramas`. An operator can
+select an existing series or create one with `POST /v1/admin/dramas`; the API
+generates the UUID and the dashboard uses it internally for the upload.
 
 ## Checks
 

@@ -57,7 +57,7 @@ export function validateUploadDraft(
     : Number(draft.thumbnailTimeSeconds);
 
   if (!UUID_PATTERN.test(dramaId)) {
-    errors.dramaId = "Enter the drama UUID from the API or database.";
+    errors.dramaId = "Select a series before uploading the episode.";
   }
   if (!Number.isInteger(episodeNumber) || episodeNumber < 1 || episodeNumber > 100_000) {
     errors.episodeNumber = "Use a whole episode number from 1 to 100,000.";

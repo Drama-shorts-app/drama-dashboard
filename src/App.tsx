@@ -29,7 +29,7 @@ export default function App() {
     ? new URLSearchParams(window.location.search).get("preview")
     : null;
   if (preview === "dashboard") {
-    return <Dashboard session={PREVIEW_SESSION} />;
+    return <Dashboard session={PREVIEW_SESSION} isPreview />;
   }
   if (preview === "sign-in") {
     return <SignIn />;

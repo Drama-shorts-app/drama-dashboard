@@ -16,6 +16,14 @@ export type EpisodeVideo = {
 };
 
 type EpisodeVideoEnvelope = { data: EpisodeVideo };
+export type DramaSummary = {
+  id: string;
+  title: string;
+  status: "draft" | "published" | "unavailable";
+};
+
+type DramaListEnvelope = { data: DramaSummary[] };
+type DramaEnvelope = { data: DramaSummary };
 type ErrorEnvelope = { error?: { code?: string; message?: string } };
 
 export class ApiError extends Error {
@@ -50,6 +58,44 @@ export function buildUploadFormData(upload: ValidUpload): FormData {
   // The backend streams the first file immediately, so the video must remain last.
   body.append("video", upload.video, upload.video.name);
   return body;
+}
+
+export async function listDramas(
+  apiUrl: string,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<DramaSummary[]> {
+  const response = await fetch(`${apiUrl}/v1/admin/dramas`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal,
+  });
+  const payload = await response.json().catch(() => null) as unknown;
+  if (!response.ok) throw toApiError(payload, response.status);
+  return (payload as DramaListEnvelope).data;
+}
+
+export async function createDrama(
+  apiUrl: string,
+  accessToken: string,
+  input: { title: string; synopsis?: string },
+  signal?: AbortSignal,
+): Promise<DramaSummary> {
+  const response = await fetch(`${apiUrl}/v1/admin/dramas`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(input),
+    signal,
+  });
+  const payload = await response.json().catch(() => null) as unknown;
+  if (!response.ok) throw toApiError(payload, response.status);
+  return (payload as DramaEnvelope).data;
 }
 
 export function uploadEpisode({

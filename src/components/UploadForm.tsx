@@ -2,11 +2,17 @@ import {
   type CSSProperties,
   type ChangeEvent,
   type FormEvent,
+  useEffect,
   useRef,
   useState,
 } from "react";
 
-import { ApiError, type EpisodeVideo, uploadEpisode } from "../lib/api";
+import {
+  ApiError,
+  type DramaSummary,
+  type EpisodeVideo,
+  uploadEpisode,
+} from "../lib/api";
 import type { UploadDraft, UploadErrors, UploadField } from "../lib/validation";
 import { validateUploadDraft } from "../lib/validation";
 import { VideoDropzone } from "./VideoDropzone";
@@ -14,6 +20,11 @@ import { VideoDropzone } from "./VideoDropzone";
 type UploadFormProps = {
   apiUrl: string;
   accessToken: string;
+  dramas: DramaSummary[];
+  dramasLoading: boolean;
+  dramasError: string | null;
+  onRefreshDramas: () => void;
+  onCreateDrama: (input: { title: string; synopsis?: string }) => Promise<DramaSummary>;
   onUploaded: (video: EpisodeVideo) => void;
 };
 
@@ -27,15 +38,35 @@ const INITIAL_DRAFT: UploadDraft = {
   video: null,
 };
 
-export function UploadForm({ apiUrl, accessToken, onUploaded }: UploadFormProps) {
+export function UploadForm({
+  apiUrl,
+  accessToken,
+  dramas,
+  dramasLoading,
+  dramasError,
+  onRefreshDramas,
+  onCreateDrama,
+  onUploaded,
+}: UploadFormProps) {
   const [draft, setDraft] = useState<UploadDraft>(INITIAL_DRAFT);
   const [errors, setErrors] = useState<UploadErrors>({});
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newDramaTitle, setNewDramaTitle] = useState("");
+  const [newDramaSynopsis, setNewDramaSynopsis] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreatingDrama, setIsCreatingDrama] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (draft.dramaId && !dramas.some((drama) => drama.id === draft.dramaId)) {
+      setDraft((current) => ({ ...current, dramaId: "" }));
+    }
+  }, [dramas, draft.dramaId]);
 
   function updateField<K extends keyof UploadDraft>(name: K, value: UploadDraft[K]) {
     setDraft((current) => ({ ...current, [name]: value }));
@@ -56,6 +87,34 @@ export function UploadForm({ apiUrl, accessToken, onUploaded }: UploadFormProps)
       coinPrice: isFree ? "0" : current.coinPrice === "0" ? "1" : current.coinPrice,
     }));
     setErrors((current) => ({ ...current, coinPrice: undefined }));
+  }
+
+  async function handleCreateDrama() {
+    const title = newDramaTitle.trim();
+    if (!title) {
+      setCreateError("Enter a series title first.");
+      return;
+    }
+
+    setIsCreatingDrama(true);
+    setCreateError(null);
+    try {
+      const drama = await onCreateDrama({
+        title,
+        ...(newDramaSynopsis.trim() ? { synopsis: newDramaSynopsis.trim() } : {}),
+      });
+      setDraft((current) => ({ ...current, dramaId: drama.id }));
+      setNewDramaTitle("");
+      setNewDramaSynopsis("");
+      setIsCreateOpen(false);
+      setErrors((current) => ({ ...current, dramaId: undefined }));
+    } catch (error) {
+      setCreateError(error instanceof ApiError
+        ? `${error.message} (${error.code})`
+        : "The new series could not be created. Try again.");
+    } finally {
+      setIsCreatingDrama(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -117,24 +176,92 @@ export function UploadForm({ apiUrl, accessToken, onUploaded }: UploadFormProps)
       <form ref={formRef} className="upload-form" onSubmit={handleSubmit} noValidate>
         <div className="form-grid">
           <div className="field field--wide">
-            <label htmlFor="dramaId">Drama UUID</label>
-            <input
+            <label htmlFor="dramaId">Series</label>
+            <div className="series-picker">
+              <select
               id="dramaId"
               name="dramaId"
-              type="text"
-              inputMode="text"
-              placeholder="7a7f2f56-2f06-4cd3-9d54-7f287b2d935e"
               value={draft.dramaId}
               onChange={(event) => updateField("dramaId", event.target.value)}
               onBlur={() => validateField("dramaId")}
               aria-invalid={Boolean(errors.dramaId)}
               aria-describedby="dramaId-message"
-              disabled={isUploading}
-            />
+              disabled={isUploading || dramasLoading || isCreatingDrama}
+            >
+              <option value="">{dramasLoading ? "Loading series…" : "Select a series"}</option>
+              {dramas.map((drama) => (
+                <option key={drama.id} value={drama.id}>
+                  {drama.title}{drama.status === "draft" ? " · Draft" : ""}
+                </option>
+              ))}
+              </select>
+              <button
+                className="button button--text"
+                type="button"
+                onClick={() => {
+                  setIsCreateOpen((current) => !current);
+                  setCreateError(null);
+                }}
+                disabled={isUploading || isCreatingDrama}
+              >
+                {isCreateOpen ? "Close" : "New series"}
+              </button>
+            </div>
             <span className={errors.dramaId ? "field__message field__message--error" : "field__message"} id="dramaId-message">
-              {errors.dramaId ?? "Use the existing drama record ID."}
+              {errors.dramaId ?? dramasError ?? "Choose an existing series or create a new one."}
             </span>
+            {dramasError ? (
+              <button className="button button--text field-retry" type="button" onClick={onRefreshDramas} disabled={dramasLoading}>
+                {dramasLoading ? "Retrying…" : "Retry series list"}
+              </button>
+            ) : null}
           </div>
+
+          {isCreateOpen ? (
+            <div className="field field--wide series-create">
+              <div className="series-create__heading">
+                <div>
+                  <strong>Create a new series</strong>
+                  <span>The API will generate its UUID automatically.</span>
+                </div>
+              </div>
+              <div className="series-create__fields">
+                <div className="field">
+                  <label htmlFor="newDramaTitle">Series title</label>
+                  <input
+                    id="newDramaTitle"
+                    name="newDramaTitle"
+                    type="text"
+                    maxLength={200}
+                    value={newDramaTitle}
+                    onChange={(event) => {
+                      setNewDramaTitle(event.target.value);
+                      setCreateError(null);
+                    }}
+                    disabled={isCreatingDrama || isUploading}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="newDramaSynopsis">Synopsis <span className="label-optional">Optional</span></label>
+                  <input
+                    id="newDramaSynopsis"
+                    name="newDramaSynopsis"
+                    type="text"
+                    maxLength={5000}
+                    value={newDramaSynopsis}
+                    onChange={(event) => setNewDramaSynopsis(event.target.value)}
+                    disabled={isCreatingDrama || isUploading}
+                  />
+                </div>
+              </div>
+              {createError ? <p className="field__message field__message--error" role="alert">{createError}</p> : null}
+              <div className="series-create__actions">
+                <button className="button button--primary" type="button" onClick={() => void handleCreateDrama()} disabled={isCreatingDrama || isUploading}>
+                  {isCreatingDrama ? <><span className="spinner" aria-hidden="true" /> Creating…</> : "Create series"}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="field">
             <label htmlFor="episodeNumber">Episode number</label>
@@ -154,7 +281,7 @@ export function UploadForm({ apiUrl, accessToken, onUploaded }: UploadFormProps)
               disabled={isUploading}
             />
             <span className={errors.episodeNumber ? "field__message field__message--error" : "field__message"} id="episodeNumber-message">
-              {errors.episodeNumber ?? "Must be unique inside this drama."}
+              {errors.episodeNumber ?? "Must be unique inside this series."}
             </span>
           </div>
 
@@ -165,7 +292,7 @@ export function UploadForm({ apiUrl, accessToken, onUploaded }: UploadFormProps)
               name="title"
               type="text"
               maxLength={200}
-              placeholder="Leave blank to use the drama title and episode number"
+              placeholder="Leave blank to use the series title and episode number"
               value={draft.title}
               onChange={(event) => updateField("title", event.target.value)}
               onBlur={() => validateField("title")}
