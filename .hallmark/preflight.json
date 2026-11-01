@@ -1,0 +1,12 @@
+{
+  "scannedAt": "2026-11-01",
+  "signals": {
+    "designSystem": null,
+    "fontStack": null,
+    "palette": null,
+    "motion": "motion-cut",
+    "spacing": null,
+    "framework": null
+  },
+  "result": "Empty repository; no pre-flight signals found."
+}
