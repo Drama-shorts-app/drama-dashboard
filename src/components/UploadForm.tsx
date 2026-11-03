@@ -25,6 +25,7 @@ type UploadFormProps = {
   dramasError: string | null;
   onRefreshDramas: () => void;
   onCreateDrama: (input: { title: string; synopsis?: string; poster?: File }) => Promise<DramaSummary>;
+  onUpdateDramaPoster: (dramaId: string, poster: File) => Promise<DramaSummary>;
   onUploaded: (video: EpisodeVideo) => void;
 };
 
@@ -46,6 +47,7 @@ export function UploadForm({
   dramasError,
   onRefreshDramas,
   onCreateDrama,
+  onUpdateDramaPoster,
   onUploaded,
 }: UploadFormProps) {
   const [draft, setDraft] = useState<UploadDraft>(INITIAL_DRAFT);
@@ -55,6 +57,8 @@ export function UploadForm({
   const [newDramaTitle, setNewDramaTitle] = useState("");
   const [newDramaSynopsis, setNewDramaSynopsis] = useState("");
   const [newDramaPoster, setNewDramaPoster] = useState<File | null>(null);
+  const [selectedDramaPoster, setSelectedDramaPoster] = useState<File | null>(null);
+  const [isUpdatingPoster, setIsUpdatingPoster] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingDrama, setIsCreatingDrama] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -119,6 +123,22 @@ export function UploadForm({
           : "The new series could not be created. Try again.");
     } finally {
       setIsCreatingDrama(false);
+    }
+  }
+
+  async function handleUpdateDramaPoster() {
+    if (!draft.dramaId || !selectedDramaPoster) return;
+    setIsUpdatingPoster(true);
+    setRequestError(null);
+    try {
+      await onUpdateDramaPoster(draft.dramaId, selectedDramaPoster);
+      setSelectedDramaPoster(null);
+    } catch (error) {
+      setRequestError(error instanceof ApiError
+        ? `${error.message} (${error.code})`
+        : error instanceof Error ? error.message : "The poster could not be saved. Try again.");
+    } finally {
+      setIsUpdatingPoster(false);
     }
   }
 
@@ -213,6 +233,34 @@ export function UploadForm({
                 {isCreateOpen ? "Close" : "New series"}
               </button>
             </div>
+            {draft.dramaId ? (
+              <div className="series-poster-editor">
+                <div className="field">
+                  <label htmlFor="selectedDramaPoster">Series poster</label>
+                  <input
+                    id="selectedDramaPoster"
+                    name="selectedDramaPoster"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => setSelectedDramaPoster(event.target.files?.[0] ?? null)}
+                    disabled={isUploading || isCreatingDrama || isUpdatingPoster}
+                  />
+                  <span className="field__message">
+                    {dramas.find((drama) => drama.id === draft.dramaId)?.posterUrl
+                      ? "A poster is saved. Choose another image to replace it."
+                      : "No poster saved yet. JPG, PNG, or WebP · 5 MB max."}
+                  </span>
+                </div>
+                <button
+                  className="button button--text"
+                  type="button"
+                  onClick={() => void handleUpdateDramaPoster()}
+                  disabled={!selectedDramaPoster || isUploading || isCreatingDrama || isUpdatingPoster}
+                >
+                  {isUpdatingPoster ? "Saving poster…" : "Save poster"}
+                </button>
+              </div>
+            ) : null}
             <span className={errors.dramaId ? "field__message field__message--error" : "field__message"} id="dramaId-message">
               {errors.dramaId ?? dramasError ?? "Choose an existing series or create a new one."}
             </span>

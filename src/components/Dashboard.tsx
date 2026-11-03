@@ -105,6 +105,18 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     return nextDrama;
   }, [getAccessToken, isPreview]);
 
+  const handleUpdateDramaPoster = useCallback(async (dramaId: string, poster: File) => {
+    if (isPreview) {
+      const previewDrama = dramas.find((drama) => drama.id === dramaId) ?? PREVIEW_DRAMA;
+      return previewDrama;
+    }
+    const accessToken = await getAccessToken();
+    const posterUrl = await uploadDramaPoster(poster, dramaId);
+    const updatedDrama = await updateDramaPoster(appConfig.apiUrl, accessToken, dramaId, posterUrl);
+    setDramas((current) => current.map((drama) => drama.id === updatedDrama.id ? updatedDrama : drama));
+    return updatedDrama;
+  }, [dramas, getAccessToken, isPreview]);
+
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!video?.episodeId) return;
     setIsRefreshing(true);
@@ -204,6 +216,7 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
             dramasError={dramasError}
             onRefreshDramas={() => void loadDramas()}
             onCreateDrama={handleCreateDrama}
+            onUpdateDramaPoster={handleUpdateDramaPoster}
             onUploaded={updateVideo}
           />
           <StatusPanel
