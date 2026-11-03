@@ -66,6 +66,7 @@ export function UploadForm({
   const abortRef = useRef<AbortController | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedDrama = dramas.find((drama) => drama.id === draft.dramaId);
 
   useEffect(() => {
     if (draft.dramaId && !dramas.some((drama) => drama.id === draft.dramaId)) {
@@ -235,6 +236,12 @@ export function UploadForm({
             </div>
             {draft.dramaId ? (
               <div className="series-poster-editor">
+                {selectedDrama?.posterUrl ? (
+                  <div className="series-poster-preview">
+                    <img src={selectedDrama.posterUrl} alt={`${selectedDrama.title} poster`} />
+                    <span>Current poster</span>
+                  </div>
+                ) : null}
                 <div className="field">
                   <label htmlFor="selectedDramaPoster">Series poster</label>
                   <input
@@ -246,7 +253,7 @@ export function UploadForm({
                     disabled={isUploading || isCreatingDrama || isUpdatingPoster}
                   />
                   <span className="field__message">
-                    {dramas.find((drama) => drama.id === draft.dramaId)?.posterUrl
+                    {selectedDrama?.posterUrl
                       ? "A poster is saved. Choose another image to replace it."
                       : "No poster saved yet. JPG, PNG, or WebP · 5 MB max."}
                   </span>
