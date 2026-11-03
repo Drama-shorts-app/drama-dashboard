@@ -24,7 +24,7 @@ type UploadFormProps = {
   dramasLoading: boolean;
   dramasError: string | null;
   onRefreshDramas: () => void;
-  onCreateDrama: (input: { title: string; synopsis?: string }) => Promise<DramaSummary>;
+  onCreateDrama: (input: { title: string; synopsis?: string; poster?: File }) => Promise<DramaSummary>;
   onUploaded: (video: EpisodeVideo) => void;
 };
 
@@ -54,6 +54,7 @@ export function UploadForm({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newDramaTitle, setNewDramaTitle] = useState("");
   const [newDramaSynopsis, setNewDramaSynopsis] = useState("");
+  const [newDramaPoster, setNewDramaPoster] = useState<File | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreatingDrama, setIsCreatingDrama] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -102,16 +103,20 @@ export function UploadForm({
       const drama = await onCreateDrama({
         title,
         ...(newDramaSynopsis.trim() ? { synopsis: newDramaSynopsis.trim() } : {}),
+        ...(newDramaPoster ? { poster: newDramaPoster } : {}),
       });
       setDraft((current) => ({ ...current, dramaId: drama.id }));
       setNewDramaTitle("");
       setNewDramaSynopsis("");
+      setNewDramaPoster(null);
       setIsCreateOpen(false);
       setErrors((current) => ({ ...current, dramaId: undefined }));
     } catch (error) {
       setCreateError(error instanceof ApiError
         ? `${error.message} (${error.code})`
-        : "The new series could not be created. Try again.");
+        : error instanceof Error
+          ? error.message
+          : "The new series could not be created. Try again.");
     } finally {
       setIsCreatingDrama(false);
     }
@@ -253,6 +258,18 @@ export function UploadForm({
                     onChange={(event) => setNewDramaSynopsis(event.target.value)}
                     disabled={isCreatingDrama || isUploading}
                   />
+                </div>
+                <div className="field">
+                  <label htmlFor="newDramaPoster">Series poster <span className="label-optional">Optional</span></label>
+                  <input
+                    id="newDramaPoster"
+                    name="newDramaPoster"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => setNewDramaPoster(event.target.files?.[0] ?? null)}
+                    disabled={isCreatingDrama || isUploading}
+                  />
+                  <span className="field__message">JPG, PNG, or WebP · 5 MB max.</span>
                 </div>
               </div>
               {createError ? <p className="field__message field__message--error" role="alert">{createError}</p> : null}

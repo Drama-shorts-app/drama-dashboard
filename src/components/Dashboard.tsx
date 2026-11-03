@@ -8,10 +8,12 @@ import {
   type EpisodeVideo,
   getEpisodeVideoStatus,
   listDramas,
+  updateDramaPoster,
 } from "../lib/api";
 import { appConfig } from "../lib/config";
 import { saveTrackedUpload, loadTrackedUpload } from "../lib/tracked-upload";
 import { supabase } from "../lib/supabase";
+import { uploadDramaPoster } from "../lib/poster-storage";
 import { StatusPanel } from "./StatusPanel";
 import { UploadForm } from "./UploadForm";
 
@@ -23,6 +25,7 @@ type DashboardProps = {
 const PREVIEW_DRAMA: DramaSummary = {
   id: "9868087c-32d2-4f5b-9b30-185b03282e22",
   title: "Demo series",
+  posterUrl: null,
   status: "draft",
 };
 
@@ -79,11 +82,12 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     return () => controller.abort();
   }, [isPreview, loadDramas]);
 
-  const handleCreateDrama = useCallback(async (input: { title: string; synopsis?: string }) => {
+  const handleCreateDrama = useCallback(async (input: { title: string; synopsis?: string; poster?: File }) => {
     if (isPreview) {
       const previewDrama: DramaSummary = {
         id: "2bc5c4c4-79e6-49d2-bf0e-dc2b2d2cb55c",
         title: input.title,
+        posterUrl: null,
         status: "draft",
       };
       setDramas((current) => [...current, previewDrama]);
@@ -91,9 +95,14 @@ export function Dashboard({ session, isPreview = false }: DashboardProps) {
     }
     const accessToken = await getAccessToken();
     const drama = await createDrama(appConfig.apiUrl, accessToken, input);
-    setDramas((current) => [...current, drama].sort((left, right) => left.title.localeCompare(right.title)));
+    let nextDrama = drama;
+    if (input.poster) {
+      const posterUrl = await uploadDramaPoster(input.poster, drama.id);
+      nextDrama = await updateDramaPoster(appConfig.apiUrl, accessToken, drama.id, posterUrl);
+    }
+    setDramas((current) => [...current, nextDrama].sort((left, right) => left.title.localeCompare(right.title)));
     setDramasError(null);
-    return drama;
+    return nextDrama;
   }, [getAccessToken, isPreview]);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {

@@ -19,6 +19,7 @@ type EpisodeVideoEnvelope = { data: EpisodeVideo };
 export type DramaSummary = {
   id: string;
   title: string;
+  posterUrl: string | null;
   status: "draft" | "published" | "unavailable";
 };
 
@@ -91,6 +92,28 @@ export async function createDrama(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(input),
+    signal,
+  });
+  const payload = await response.json().catch(() => null) as unknown;
+  if (!response.ok) throw toApiError(payload, response.status);
+  return (payload as DramaEnvelope).data;
+}
+
+export async function updateDramaPoster(
+  apiUrl: string,
+  accessToken: string,
+  dramaId: string,
+  posterUrl: string | null,
+  signal?: AbortSignal,
+): Promise<DramaSummary> {
+  const response = await fetch(`${apiUrl}/v1/admin/dramas/${encodeURIComponent(dramaId)}`, {
+    method: "PATCH",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ posterUrl }),
     signal,
   });
   const payload = await response.json().catch(() => null) as unknown;
